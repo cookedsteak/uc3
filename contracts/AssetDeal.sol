@@ -11,7 +11,7 @@ contract AssetDeal is Ownable {
     using SafeMath for uint256;
 
     //    uint256 dealId;
-    uint32 feePrecent = 0;
+    uint32 feePercentage = 5; // %
     uint256 defaultClaimExp = 5 days;
 
     StandardAsset public standardAsset;
@@ -33,8 +33,10 @@ contract AssetDeal is Ownable {
 
     mapping (uint256 => Deal) public dealList;
 
-    event CreateDeal(address _assetType, uint256 _tokenId, address _seller, address _buyer, uint256 _price, uint256 _tax, uint256 _dealId);
+    event CreateDeal(address indexed _assetType, uint256 _tokenId, address indexed _seller, address indexed _buyer, uint256 _price, uint256 _tax, uint256 _dealId);
     event PayByEth(address _buyer, address _seller, uint256 _amount, uint256 tokenId);
+    event Delivered(address indexed _from, uint256 _dealId, uint256 _time);
+    event Confirmed(address indexed _from, uint256 _dealId, uint256 _time);
 
     constructor(address _assetAddress) public {
         standardAsset = StandardAsset(_assetAddress);
@@ -142,43 +144,44 @@ contract AssetDeal is Ownable {
         }
 
         if (deal.buyer == address(0)) {
-          // normal sale
-          deal.buyer = msg.sender;
+            // normal sale
+            deal.buyer = msg.sender;
         } else {
-          // specific sale
-          require(msg.sender == deal.buyer);
+            // specific sale
+            require(msg.sender == deal.buyer);
         }
 
         uint256 fee = _calcFee(deal.price);
         uint256 sellerReward = wholePrice.sub(fee);
 
         if (deal.dealType == Type.DIRECT) {
-          if (sellerReward > 0) {
-              deal.seller.transfer(sellerReward);
-          }
-          standardAsset.safeTransferFrom(this, deal.buyer, deal.tokenId);
-          deal.dealState = State.FINISHED;
+            if (sellerReward > 0) {
+                deal.seller.transfer(sellerReward);
+            }
+            standardAsset.safeTransferFrom(this, deal.buyer, deal.tokenId);
+            deal.dealState = State.FINISHED;
         } else if (deal.dealType == Type.SECURED) {
-          // @todo seller delivery exp
-          deal.dealState = State.ONDELIVERY;
+            // @todo seller delivery exp
+            deal.dealState = State.ONDELIVERY;
         }
 
         emit PayByEth(deal.buyer, deal.seller, wholePrice, deal.tokenId);
-        // need delete from the salelist ??
-        // delete salelist[tokenId];
     }
 
     function deliver(uint256 _dealId) public {
         Deal storage deal = dealList[_dealId];
+        require(deal.dealType == Type.SECURED);
         require(deal.dealState == State.ONDELIVERY);
         require(msg.sender == deal.seller);
 
         deal.dealState = State.ONCONFIRM;
+        emit Delivered(msg.sender, _dealId, now);
     }
 
     function confirm(uint256 _dealId) public {
         // check sale status
         Deal storage deal = dealList[_dealId];
+        require(deal.dealType == Type.SECURED);
         require(now <= deal.createdAt + deal.claimExp);
         require(deal.dealState == State.ONCONFIRM);
         require(msg.sender == deal.buyer);
@@ -188,8 +191,8 @@ contract AssetDeal is Ownable {
         deal.seller.transfer(sellerReward);
 
         deal.dealState = State.FINISHED;
+        emit Confirmed(msg.sender, _dealId, now);
     }
-
 
     function getDealId(address _asset, uint256 _tokenId, uint256 _price) public view returns (uint256) {
         uint256 id = uint256(keccak256(abi.encodePacked(_asset, _tokenId, _price, now)));
@@ -197,7 +200,7 @@ contract AssetDeal is Ownable {
     }
 
     // calculate Trade Fee
-    function _calcFee(uint256 _price) internal pure returns (uint256) {
-        return 0;
+    function _calcFee(uint256 _price) internal view returns (uint256) {
+        return uint256(_price * feePercentage / 100);
     }
 }
