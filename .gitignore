@@ -63,3 +63,5 @@ typings/
 .idea/
 build/
 package-lock.json
+./test/test.js
+./test/Test.spec.js

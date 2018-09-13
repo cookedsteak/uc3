@@ -131,17 +131,14 @@ contract AssetDeal is Ownable {
 
     function _payByEth(uint256 _dealId) internal {
         Deal storage deal = dealList[_dealId];
-        require(deal.dealState == State.ONSALE);
+        require(deal.dealState == State.ONSALE, "Deal state is not correct");
 
         uint256 wholePrice = deal.price.add(deal.tax);
         uint256 buyerChange = 0;
 
-        require(wholePrice > 0 && msg.value >= wholePrice);
+        require(wholePrice > 0 && msg.value >= wholePrice, "Whole price is not correct");
         // if deal is not free
         buyerChange = msg.value.sub(wholePrice);
-        if (buyerChange > 0) {
-            deal.buyer.transfer(buyerChange);
-        }
 
         if (deal.buyer == address(0)) {
             // normal sale
@@ -149,6 +146,9 @@ contract AssetDeal is Ownable {
         } else {
             // specific sale
             require(msg.sender == deal.buyer);
+        }
+        if (buyerChange > 0) {
+            deal.buyer.transfer(buyerChange);
         }
 
         uint256 fee = _calcFee(deal.price);
