@@ -1,13 +1,11 @@
 pragma solidity ^0.4.19;
 
-import "./StandardAsset.sol";
-import "./AssetDeal.sol";
-import "./openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import './StandardAsset.sol';
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 contract AssetRegistry is Ownable {
 
     event AssetRegistered(StandardAsset indexed asset, uint indexed id);
-//    event DealRegistered(AssetDeal indexed deal);
 
     // Mapping from contract ID to StandardAsset
     mapping(uint => StandardAsset) public idAssets;
@@ -21,9 +19,9 @@ contract AssetRegistry is Ownable {
     * @param _name AssetType name
     * @param _symbol AssetType symbol
     */
-//    function registerClass(string _name, string _symbol, address _owner) onlyOwner public returns (uint){
-//        return register(_name, _symbol, 1, "", _owner);
-//    }
+    function registerClass(string _name, string _symbol, address _owner) onlyOwner public returns (uint){
+        return register(_name, _symbol, 1, "", _owner);
+    }
 
     /**
     * @dev  Registering a type of asset
@@ -66,13 +64,5 @@ contract AssetRegistry is Ownable {
         uint256 id = uint256(keccak256(abi.encodePacked(_name, _symbol, _uri)));
         return id;
     }
-
-//    function makeADeal(uint256 _id) onlyOwner public {
-//        address assetAddress = address(idAssets[_id]);
-//        require(assetAddress != address(0x0));
-//        AssetDeal deal = new AssetDeal(assetAddress);
-//        dealRegistry[_id] = deal;
-//        emit DealRegistered(deal);
-//    }
 
 }
