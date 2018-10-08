@@ -4,7 +4,7 @@ import "./AssetDealBasic.sol";
 import "./openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
 import "./openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
-contract AssetDeal is AssetDealBasic, Pausable, Ownable {
+contract AssetDeal is AssetDealBasic, Pausable {
     using SafeMath for uint256;
 
     event WithDraw(address indexed _owner, uint256 _amount);
@@ -40,7 +40,7 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
 
     // @todo consider: token is available when created deal ailbert forbidden now
     function withDrawToken(uint256 _amount, address _token) external onlyOwner {
-        ERC20 storage token = ERC20(_token);
+        ERC20 token = ERC20(_token);
         require(token.transfer(owner, _amount), "withdraw token failed");
         emit WithDrawToken(owner, _token, _amount);
     }
@@ -55,6 +55,8 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
     whenNotPaused
     {
         Deal memory deal = Deal(
+            _dealAddresses[0],
+            _dealValues[3],
             _dealAddresses[1],
             _dealAddresses[2],
             _dealValues[0],
@@ -66,7 +68,7 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
             address(0),
             0
         );
-        _createDeal(_dealAddresses[0], _dealValues[3], deal);
+        _createDeal(deal);
     }
 
     // _dealAddresses, _dealValues, dType
@@ -80,6 +82,8 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
     tokenIsValid(_dealAddresses[3])
     {
         Deal memory deal = Deal(
+            _dealAddresses[0],
+            _dealValues[3],
             _dealAddresses[1],
             _dealAddresses[2],
             _dealValues[0],
@@ -91,7 +95,7 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
             _dealAddresses[3],
             0
         );
-        _createDeal(_dealAddresses[0], _dealValues[3], deal);
+        _createDeal(deal);
     }
 
     // _dealAddresses, _dealValues, dType
@@ -103,6 +107,8 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
     whenNotPaused
     {
         Deal memory deal = Deal(
+            _dealAddresses[0],
+            _dealValues[3],
             _dealAddresses[1],
             _dealAddresses[2],
             _dealValues[0],
@@ -114,7 +120,7 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
             _dealAddresses[3],
             _dealValues[4]
         );
-        _createDeal(_dealAddresses[0], _dealValues[3], deal);
+        _createDeal(deal);
     }
 
     // Cancel a deal if condition is satisfied
@@ -183,7 +189,7 @@ contract AssetDeal is AssetDealBasic, Pausable, Ownable {
     view
     dealExists(_assetType, _tokenId)
     returns(DealState) {
-        return dealList[_assetType][_tokenId].dstate;
+        return dealList[_assetType][_tokenId].dState;
     }
 
     //

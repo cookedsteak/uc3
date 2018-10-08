@@ -1,9 +1,9 @@
 pragma solidity ^0.4.19;
 
 
-import 'openzeppelin-solidity/contracts/ECRecovery.sol';
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import 'openzeppelin-solidity/contracts/ownership/Ownable.sol';
+import './openzeppelin-solidity/contracts/ECRecovery.sol';
+import './openzeppelin-solidity/contracts/math/SafeMath.sol';
+import './openzeppelin-solidity/contracts/ownership/Ownable.sol';
 
 contract TxRelay is Ownable {
 
@@ -26,9 +26,5 @@ contract TxRelay is Ownable {
         nonces[_txSender]++; //if we are going to do tx, update nonce
         require(_dest.call.value(_fees.sub(_txFees))(_data));
     }
-
-
-
-
 
 }

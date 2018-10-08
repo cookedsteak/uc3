@@ -1,7 +1,7 @@
 pragma solidity ^0.4.19;
 
 import './StandardAsset.sol';
-import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "./openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 contract AssetRegistry is Ownable {
 

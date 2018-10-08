@@ -1,7 +1,7 @@
 pragma solidity ^0.4.19;
 
-import 'openzeppelin-solidity/contracts/token/ERC721/ERC721Token.sol';
-import 'openzeppelin-solidity/contracts/ECRecovery.sol';
+import './openzeppelin-solidity/contracts/token/ERC721/ERC721Token.sol';
+import './openzeppelin-solidity/contracts/ECRecovery.sol';
 import './Controlled.sol';
 /*
 contract AssetType {

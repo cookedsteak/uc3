@@ -27,7 +27,7 @@ contract Wallet is Ownable{
     }
 
     function takeBack(address _asset, uint256 _tokenId) {
-        asset = StandardAsset(_asset);
+        StandardAsset asset = StandardAsset(_asset);
         asset.safeTransferFrom(address(this), master, _tokenId);
     }
 

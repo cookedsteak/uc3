@@ -23,6 +23,8 @@ contract AssetDealBasic {
     enum PayMethod  {ETH, TOKEN, ASSET}
 
     struct Deal {
+        address     assetType;
+        uint256     tokenId;
         address     seller;
         address     buyer;
         uint256     duration;
@@ -111,17 +113,17 @@ contract AssetDealBasic {
         _;
     }
 
-    modifier isERC20(address _assetType) {
-        // @todo check if token is a standard erc20 implementation
-        require();
-        _;
-    }
+//    modifier isERC20(address _assetType) {
+//        // @todo check if token is a standard erc20 implementation
+//        require();
+//        _;
+//    }
 
     //===========get & set============//
     // Pay with eth
     function _setEthFeeRate(uint256 _rate) internal {
         require(_rate < 100 && _rate >= 0);
-        sellerFeeRate = _rate;
+        ethFeeRate = _rate;
     }
 
     function _setMaximumFeeCost(uint256 _fee) internal canBeStoredWith64Bits(_fee) {
@@ -136,7 +138,7 @@ contract AssetDealBasic {
     internal
     dealExists(_assetType, _tokenId)
     {
-        Deal deal = dealList[_assetType][_tokenId];
+        Deal storage deal = dealList[_assetType][_tokenId];
         deal.dState = _state;
     }
 
@@ -190,7 +192,7 @@ contract AssetDealBasic {
     // @param _signer Signer's address
     // @param _hash The msg which has been hashed (contains \x19Ethereum....)
     // @param _sig
-    function isValidSignature(address _signer, byte32 _hash, byte _sig)
+    function isValidSignature(address _signer, bytes32 _hash, bytes _sig)
     public
     constant
     returns (bool)
@@ -211,19 +213,19 @@ contract AssetDealBasic {
     // Create a deal for asset
     // @param _assetType Contract address of ERC721 TOKEN for sale
     // @param _tokenId TokenId for sale
-    function _createDeal(address _assetType, uint256 _tokenId, Deal _deal)
+    function _createDeal(Deal _deal)
     internal
-    dealCanBeCreated(_assetType, _tokenId)
+    dealCanBeCreated(_deal.assetType, _deal.tokenId)
     {
-        StandardAsset asset = StandardAsset(_assetType);
-        require(asset.ownerOf(_tokenId) == _deal.seller);
+        StandardAsset asset = StandardAsset(_deal.assetType);
+        require(asset.ownerOf(_deal.tokenId) == _deal.seller);
 
-        dealList[_assetType][_tokenId] = _deal;
+        dealList[_deal.assetType][_deal.tokenId] = _deal;
         // @todo create a market signal
-        _escrow(_assetType, _tokenId, _deal.seller);
+        _escrow(_deal.assetType, _deal.tokenId, _deal.seller);
 
         emit DealCreated(
-            _assetType, _tokenId, _deal.seller, _deal.buyer,
+            _deal.assetType, _deal.tokenId, _deal.seller, _deal.buyer,
             _deal.duration, _deal.createdAt, _deal.amount,
             _deal.tradeAsset, _deal.tradeTokenId, _deal.dType, _deal.pMethod
         );
@@ -234,7 +236,7 @@ contract AssetDealBasic {
     function _cancelDeal(address _assetType, uint256 _tokenId)
     internal
     {
-        StandardAsset storage asset = StandardAsset(_assetType);
+//        StandardAsset asset = StandardAsset(_assetType);
         Deal storage deal = dealList[_assetType][_tokenId];
         require(
             deal.dState == DealState.ONSALE
@@ -355,7 +357,7 @@ contract AssetDealBasic {
             _finishDeal(deal);
         } else if (deal.dType == DealType.OFFLINE) {
             // wait for buyer's confirmation
-            deal.dState = DealStatTe.TOSHIP;
+            deal.dState = DealState.TOSHIP;
         }
     }
 
@@ -363,18 +365,21 @@ contract AssetDealBasic {
     function _finishDeal(Deal storage deal)
     internal
     {
+        uint256 fee;
+        uint256 sellerReward;
+
         if (deal.pMethod == PayMethod.ETH) {
-            uint256 fee = _calcFee(deal.amount, ethFeeRate);
-            uint256 sellerReward = deal.amount.sub(fee);
+            fee = _calcFee(deal.amount, ethFeeRate);
+            sellerReward = deal.amount.sub(fee);
             if (sellerReward > 0) {
                 deal.seller.transfer(sellerReward);
             }
         } else if (deal.pMethod == PayMethod.TOKEN) {
-            uint256 fee = _calcFee(deal.amount, ethFeeRate);
-            uint256 sellerReward = deal.amount.sub(fee);
+            fee = _calcFee(deal.amount, ethFeeRate);
+            sellerReward = deal.amount.sub(fee);
             if (sellerReward > 0) {
                 // erc20 token is available
-                ERC20 token = ERC20(deal.tradeAssetType);
+                ERC20 token = ERC20(deal.tradeAsset);
                 require(token.transferFrom(deal.buyer, deal.seller, sellerReward));
             }
         } else if (deal.pMethod == PayMethod.ASSET) {
@@ -382,12 +387,12 @@ contract AssetDealBasic {
             StandardAsset(deal.tradeAsset).safeTransferFrom(address(this), deal.seller, deal.tradeTokenId);
         }
 
-        StandardAsset(deal.assetType).safeTransferFrom(address(this), deal.buyer, _tokenId);
+        StandardAsset(deal.assetType).safeTransferFrom(address(this), deal.buyer, deal.tokenId);
         deal.dState = DealState.FINISHED;
 
         emit DealSuccessful(
             deal.assetType, deal.tokenId, deal.seller,
-            deal.buyer, deal.price, deal.tradeAsset,
+            deal.buyer, deal.amount, deal.tradeAsset,
             deal.tradeTokenId, now
         );
     }
@@ -405,7 +410,7 @@ contract AssetDealBasic {
     internal
     {
         require(deal.dState == DealState.TOCONFIRM && deal.dType == DealType.OFFLINE);
-        _finishedDeal(deal);
+        _finishDeal(deal);
     }
 
     // How to determined the Token-fee cost limitation?
