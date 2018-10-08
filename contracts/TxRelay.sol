@@ -1,9 +1,9 @@
 pragma solidity ^0.4.19;
 
 
-import "./openzeppelin-solidity/contracts/ECRecovery.sol";
-import "./openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "./openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import 'openzeppelin-solidity/contracts/ECRecovery.sol';
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import 'openzeppelin-solidity/contracts/ownership/Ownable.sol';
 
 contract TxRelay is Ownable {
 

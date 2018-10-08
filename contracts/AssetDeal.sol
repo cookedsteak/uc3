@@ -1,206 +1,196 @@
 pragma solidity ^0.4.23;
 
-import "./StandardAsset.sol";
+import "./AssetDealBasic.sol";
+import "./openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
 import "./openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import "./openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-
-// more like a price/buyer-fixed transaction
-// more suitable for online trading
-contract AssetDeal is Ownable {
+contract AssetDeal is AssetDealBasic, Pausable, Ownable {
     using SafeMath for uint256;
 
-    //    uint256 dealId;
-    uint32 feePercentage = 5; // %
-    uint256 defaultClaimExp = 5 days;
+    event WithDraw(address indexed _owner, uint256 _amount);
+    event WithDrawToken(address indexed _owner, address _token, uint256 _amount);
 
-    StandardAsset public standardAsset;
+    constructor() public {
 
-    enum Type   {DIRECT, SECURED}
-    enum State  {ONSALE, ONDELIVERY, ONCONFIRM, FINISHED, CANCELLED}
-
-    struct Deal {
-        address seller;
-        address buyer;
-        uint256 price;
-        uint256 tax;
-        uint256 claimExp;
-        uint256 tokenId;
-        Type    dealType;
-        State   dealState;
-        uint256 createdAt;
     }
 
-    mapping (uint256 => Deal) public dealList;
-
-    event CreateDeal(address indexed _assetType, uint256 _tokenId, address indexed _seller, address indexed _buyer, uint256 _price, uint256 _tax, uint256 _dealId);
-    event PayByEth(address _buyer, address _seller, uint256 _amount, uint256 tokenId);
-    event Delivered(address indexed _from, uint256 _dealId, uint256 _time);
-    event Confirmed(address indexed _from, uint256 _dealId, uint256 _time);
-
-    constructor(address _assetAddress) public {
-        standardAsset = StandardAsset(_assetAddress);
+    /* ERC20 Token control */
+    function addAvailableToken(address _token, uint256 _fee) public onlyOwner {
+        _setTokenFeeRate(_token, _fee);
     }
 
-    function getAssetOwner(uint256 _tokenId) view public returns (address) {
-        return standardAsset.ownerOf(_tokenId);
+    function removeAvailableToken(address _token) public onlyOwner {
+        _removeAvailableToken(_token);
     }
 
-    function getDealState(uint256 _dealId) view public returns (State) {
-        return dealList[_dealId].dealState;
+    function pauseAvailableToken(address _token) public onlyOwner {
+        _setAvailableToken(_token, false);
     }
 
-    function getDeal(uint256 _dealId) external view returns (
-        address seller, address buyer,
-        uint256 price, uint256 tax,
-        uint256 claimExp, uint256 tokenId,
-        Type dealType, State dealState, uint256 createdAt
-    ) {
-        Deal memory deal = dealList[_dealId];
-        seller = deal.seller;
-        buyer = deal.buyer;
-        price = deal.price;
-        tax = deal.tax;
-        claimExp = deal.claimExp;
-        tokenId = deal.tokenId;
-        dealType = deal.dealType;
-        dealState = deal.dealState;
-        createdAt = deal.createdAt;
+    function activateAvailableToken(address _token) public onlyOwner {
+        _setAvailableToken(_token, true);
     }
 
-    function _escrow(address _owner, uint256 _tokenId) internal {
-        standardAsset.transferFrom(_owner, address(this), _tokenId);
+    // functions for this contract owner
+    function withDraw(uint256 _amount) external onlyOwner {
+        require(_amount > address(this).balance);
+        owner.transfer(_amount);
+        emit WithDraw(owner, _amount);
     }
 
-    function _cancelEscrow(address _owner, uint256 _tokenId) internal {
-        standardAsset.transferFrom(address(this), _owner, _tokenId);
+    // @todo consider: token is available when created deal ailbert forbidden now
+    function withDrawToken(uint256 _amount, address _token) external onlyOwner {
+        ERC20 storage token = ERC20(_token);
+        require(token.transfer(owner, _amount), "withdraw token failed");
+        emit WithDrawToken(owner, _token, _amount);
     }
 
-    function _newDeal(
-        uint256 _tokenId,
-        address _buyer,
-        uint256 _price,
-        uint256 _tax,
-        Type _dealType
-    ) internal {
-        require(msg.sender != _buyer);
-        require(_price == uint256(uint128(_price)));
-        require(_tax == uint256(uint128(_tax)));
-        require(getAssetOwner(_tokenId) == msg.sender);
-
+    // _dealAddresses, _dealValues, dType
+    // @param: _dealAddresses: 0.assetType, 1.seller, 2.buyer, 3.tradeAsset
+    // @param: _dealValues: 0.duration, 1.createdAt, 2.amount, 3.tokenId
+    // @param: dType: DealType
+    function createEthDeal(address[4] _dealAddresses, uint[4] _dealValues, DealType _dType)
+    public
+    canBeStoredWith128Bits(_dealValues[2])
+    whenNotPaused
+    {
         Deal memory deal = Deal(
-            msg.sender,
-            _buyer,
-            _price,
-            _tax,
-            defaultClaimExp,
-            _tokenId,
-            _dealType,
-            State.ONSALE,
-            now
+            _dealAddresses[1],
+            _dealAddresses[2],
+            _dealValues[0],
+            now,
+            _dType,
+            DealState.ONSALE,
+            PayMethod.ETH,
+            _dealValues[2],
+            address(0),
+            0
         );
-        // transfer to contract
-        _escrow(msg.sender, _tokenId);
-
-        uint256 dealId = getDealId(standardAsset, _tokenId, _price);
-        dealList[dealId] = deal;
-        emit CreateDeal(standardAsset, _tokenId, msg.sender, _buyer, _price, _tax, dealId);
+        _createDeal(_dealAddresses[0], _dealValues[3], deal);
     }
 
-    function createDirectDeal(uint256 _tokenId, uint256 _price, uint256 _tax) external {
-        _newDeal(_tokenId, address(0), _price, _tax, Type.DIRECT);
+    // _dealAddresses, _dealValues, dType
+    // @param: _dealAddresses: 0.assetType, 1.seller, 2.buyer, 3.tradeAsset
+    // @param: _dealValues: 0.duration, 1.createdAt, 2.amount, 3.tokenId
+    // @param: dType: DealType
+    function createTokenDeal(address[4] _dealAddresses, uint[4] _dealValues, DealType _dType)
+    public
+    whenNotPaused
+    canBeStoredWith128Bits(_dealValues[2])
+    tokenIsValid(_dealAddresses[3])
+    {
+        Deal memory deal = Deal(
+            _dealAddresses[1],
+            _dealAddresses[2],
+            _dealValues[0],
+            now,
+            _dType,
+            DealState.ONSALE,
+            PayMethod.TOKEN,
+            _dealValues[2],
+            _dealAddresses[3],
+            0
+        );
+        _createDeal(_dealAddresses[0], _dealValues[3], deal);
     }
 
-    function createSecuredDeal(uint256 _tokenId, uint256 _price, uint256 _tax) external {
-        _newDeal(_tokenId, address(0), _price, _tax, Type.SECURED);
+    // _dealAddresses, _dealValues, dType
+    // @param: _dealAddresses: 0.assetType, 1.seller, 2.buyer, 3.tradeAsset
+    // @param: _dealValues: 0.duration, 1.createdAt, 2.amount, 3.tokenId, 4.tradeTokenId
+    // @param: dType: DealType
+    function createAssetDeal(address[4] _dealAddresses, uint[5] _dealValues, DealType _dType)
+    public
+    whenNotPaused
+    {
+        Deal memory deal = Deal(
+            _dealAddresses[1],
+            _dealAddresses[2],
+            _dealValues[0],
+            now,
+            _dType,
+            DealState.ONSALE,
+            PayMethod.TOKEN,
+            _dealValues[2],
+            _dealAddresses[3],
+            _dealValues[4]
+        );
+        _createDeal(_dealAddresses[0], _dealValues[3], deal);
     }
 
-    function cancelDeal(uint256 _dealId) public {
-        Deal storage deal = dealList[_dealId];
+    // Cancel a deal if condition is satisfied
+    function cancelDeal(address _assetType, uint256 _tokenId)
+    external
+    whenNotPaused
+    dealExists(_assetType, _tokenId)
+    {
+        _cancelDeal(_assetType, _tokenId);
+    }
 
-        require(deal.dealState == State.ONSALE);
+    function payByEth(address _assetType, uint256 _tokenId)
+    external
+    payable
+    whenNotPaused
+    dealExists(_assetType, _tokenId)
+    {
+        _payByEth(_assetType, _tokenId);
+    }
+
+    function payByToken(address _assetType, uint256 _tokenId)
+    external
+    whenNotPaused
+    dealExists(_assetType, _tokenId)
+    {
+        _payByToken(_assetType, _tokenId);
+    }
+
+    function payByAsset(address _assetType, uint256 _tokenId, address _tradeAsset, uint256 _tradeTokenId)
+    external
+    whenNotPaused
+    {
+        _payByAsset(_assetType, _tokenId, _tradeAsset, _tradeTokenId);
+    }
+
+
+    //============get methods============//
+    function getDealInfo(address _assetType, uint256 _tokenId)
+    public
+    view
+    dealExists(_assetType, _tokenId)
+    returns
+    (
+        address     seller,
+        address     buyer,
+        uint256     duration,
+        uint256     createdAt,
+        uint256     amount,
+        address     tradeAsset,
+        uint256     tradeTokenId
+    ) {
+        Deal memory deal = dealList[_assetType][_tokenId];
+        return(
+        deal.seller,
+        deal.buyer,
+        deal.duration,
+        deal.createdAt,
+        deal.amount,
+        deal.tradeAsset,
+        deal.tradeTokenId
+        );
+    }
+
+    function getDealState(address _assetType, uint256 _tokenId)
+    public
+    view
+    dealExists(_assetType, _tokenId)
+    returns(DealState) {
+        return dealList[_assetType][_tokenId].dstate;
+    }
+
+    //
+    function cancelDealBySeller(address _assetType, uint256 _tokenId) public {
+        Deal memory deal = dealList[_assetType][_tokenId];
         require(msg.sender == deal.seller);
-
-        _cancelEscrow(msg.sender, deal.tokenId);
-        deal.dealState = State.CANCELLED;
+        _cancelDeal(_assetType, _tokenId);
     }
 
-    function payByEth(uint256 _dealId) external payable {
-        _payByEth(_dealId);
-    }
-
-    function _payByEth(uint256 _dealId) internal {
-        Deal storage deal = dealList[_dealId];
-        require(deal.dealState == State.ONSALE, "Deal state is not correct");
-
-        uint256 wholePrice = deal.price.add(deal.tax);
-        uint256 buyerChange = 0;
-
-        require(wholePrice > 0 && msg.value >= wholePrice, "Whole price is not correct");
-        // if deal is not free
-        buyerChange = msg.value.sub(wholePrice);
-
-        if (deal.buyer == address(0)) {
-            // normal sale
-            deal.buyer = msg.sender;
-        } else {
-            // specific sale
-            require(msg.sender == deal.buyer);
-        }
-        if (buyerChange > 0) {
-            deal.buyer.transfer(buyerChange);
-        }
-
-        uint256 fee = _calcFee(deal.price);
-        uint256 sellerReward = wholePrice.sub(fee);
-
-        if (deal.dealType == Type.DIRECT) {
-            if (sellerReward > 0) {
-                deal.seller.transfer(sellerReward);
-            }
-            standardAsset.safeTransferFrom(this, deal.buyer, deal.tokenId);
-            deal.dealState = State.FINISHED;
-        } else if (deal.dealType == Type.SECURED) {
-            // @todo seller delivery exp
-            deal.dealState = State.ONDELIVERY;
-        }
-
-        emit PayByEth(deal.buyer, deal.seller, wholePrice, deal.tokenId);
-    }
-
-    function deliver(uint256 _dealId) public {
-        Deal storage deal = dealList[_dealId];
-        require(deal.dealType == Type.SECURED);
-        require(deal.dealState == State.ONDELIVERY);
-        require(msg.sender == deal.seller);
-
-        deal.dealState = State.ONCONFIRM;
-        emit Delivered(msg.sender, _dealId, now);
-    }
-
-    function confirm(uint256 _dealId) public {
-        // check sale status
-        Deal storage deal = dealList[_dealId];
-        require(deal.dealType == Type.SECURED);
-        require(now <= deal.createdAt + deal.claimExp);
-        require(deal.dealState == State.ONCONFIRM);
-        require(msg.sender == deal.buyer);
-        //
-        standardAsset.safeTransferFrom(this, deal.buyer, deal.tokenId);
-        uint256 sellerReward = deal.price.add(deal.tax).sub(_calcFee(deal.price));
-        deal.seller.transfer(sellerReward);
-
-        deal.dealState = State.FINISHED;
-        emit Confirmed(msg.sender, _dealId, now);
-    }
-
-    function getDealId(address _asset, uint256 _tokenId, uint256 _price) public view returns (uint256) {
-        uint256 id = uint256(keccak256(abi.encodePacked(_asset, _tokenId, _price, now)));
-        return id;
-    }
-
-    // calculate Trade Fee
-    function _calcFee(uint256 _price) internal view returns (uint256) {
-        return uint256(_price * feePercentage / 100);
-    }
 }
