@@ -62,6 +62,11 @@ typings/
 
 .idea/
 build/
-package-lock.json
-./test/test.js
+
+# contracts
+./contracts/Test.sol
+
+# test scripts
+./test/test_*.js
 ./test/Test.spec.js
+
