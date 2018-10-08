@@ -1,3 +1,4 @@
+const { assertRevert } = require('./helpers/assertRevert')
 const { BigNumber} = require('bignumber.js')
 const { ethGetBalance } = require('./helpers/web3')
 const { ether } = require('./helpers/ether')
@@ -7,44 +8,60 @@ const StandardAsset = artifacts.require('./StandardAsset.sol')
 require("chai").use(require('chai-bignumber')(BigNumber)).should()
 
 contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
-
+    const tokenId = 1
     const name = "My membership card"
     const symbol = "MMC"
     const supply = new BigNumber(3)
     const classUri = "swarm://cardclass.assets"
     const tokenUri = "swarm://mycard.assets"
 
-    describe('register class', function () {
 
-        beforeEach(async ()=> {
-            this.assetRegister = await AssetRegistry.new(
-                {from: Proxy}
-            )
+    describe('register asset class', function () {
+        let assetRegister = null
+        let assetId = null
+
+        beforeEach(async () => {
+            assetRegister = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegister.getId.call(name, symbol, classUri)
         })
 
         it("can register a new asset class", async () => {
-            let assetId = await this.assetRegister.registerClass(
+            await assetRegister.registerClass(
                 name, symbol, supply, classUri, Club, {from: Proxy}
             )
-            let gotId = await this.assetRegister.getId.call(name, symbol, classUri)
-
-            assetId.should.equal(gotId)
+            let standardAsset = await StandardAsset.at(
+                await assetRegister.idAssets.call(assetId.toString())
+            )
+            // owner id club
+            let owner = await standardAsset.owner.call()
+            owner.should.equal(Club)
         })
 
         it("should revert if registrant is not the owner", async () => {
-
+            assertRevert(assetRegister.registerClass(
+                name, symbol, supply, classUri, Club, {from: Alice}
+            ))
         })
     })
 
     describe('mint asset', function () {
+        let assetRegister = null
+        let standardAsset = null
+        let assetId = null
+
+        beforeEach(async ()=> {
+            assetRegister = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegister.getId.call(name, symbol, classUri)
+            await assetRegister.registerClass(
+                name, symbol, supply, classUri, Club, {from: Proxy}
+            )
+            let standardAssetAddress = await assetRegister.idAssets.call(assetId.toString())
+            standardAsset = await StandardAsset.at(standardAssetAddress)
+        })
+
         it("should mint user a new asset", async () => {
-            let assetId = await this.assetRegister.getId.call(name, symbol, uri)
-            let standardAssetAddress = this.assetRegister.idAssets.call(assetId.toString())
-
-            this.standardAsset = await StandardAsset.at(standardAssetAddress)
-            this.standardAsset.mint(Alice, tokenUri, {from: Club})
-
-            this.standardAsset.ownerOf.call().should.equal(Alice)
+            standardAsset.mint(Alice, tokenUri, {from: Club})
+            // standardAsset.ownerOf.call().should.equal(Alice)
         })
 
     })
