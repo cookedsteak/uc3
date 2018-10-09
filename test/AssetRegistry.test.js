@@ -15,22 +15,21 @@ contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
     const classUri = "swarm://cardclass.assets"
     const tokenUri = "swarm://mycard.assets"
 
-
     describe('register asset class', function () {
-        let assetRegister = null
+        let assetRegistry = null
         let assetId = null
 
         beforeEach(async () => {
-            assetRegister = await AssetRegistry.new({from: Proxy})
-            assetId = await assetRegister.getId.call(name, symbol, classUri)
+            assetRegistry = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegistry.getId.call(name, symbol, classUri)
         })
 
         it("can register a new asset class", async () => {
-            await assetRegister.registerClass(
+            await assetRegistry.registerClass(
                 name, symbol, supply, classUri, Club, {from: Proxy}
             )
             let standardAsset = await StandardAsset.at(
-                await assetRegister.idAssets.call(assetId.toString())
+                await assetRegistry.idAssets.call(assetId.toString())
             )
             // owner id club
             let owner = await standardAsset.owner.call()
@@ -38,24 +37,24 @@ contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
         })
 
         it("should revert if registrant is not the owner", async () => {
-            assertRevert(assetRegister.registerClass(
+            assertRevert(assetRegistry.registerClass(
                 name, symbol, supply, classUri, Club, {from: Bob}
             ))
         })
     })
 
     describe('mint asset', function () {
-        let assetRegister = null
+        let assetRegistry = null
         let standardAsset = null
         let assetId = null
 
         beforeEach(async ()=> {
-            assetRegister = await AssetRegistry.new({from: Proxy})
-            assetId = await assetRegister.getId.call(name, symbol, classUri)
-            await assetRegister.registerClass(
+            assetRegistry = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegistry.getId.call(name, symbol, classUri)
+            await assetRegistry.registerClass(
                 name, symbol, supply, classUri, Club, {from: Proxy}
             )
-            let standardAssetAddress = await assetRegister.idAssets.call(assetId.toString())
+            let standardAssetAddress = await assetRegistry.idAssets.call(assetId.toString())
             standardAsset = await StandardAsset.at(standardAssetAddress)
         })
 
@@ -80,25 +79,24 @@ contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
     })
 
     describe('burn asset', function () {
-        let assetRegister = null
+        let assetRegistry = null
         let standardAsset = null
         let assetId = null
 
         beforeEach(async ()=> {
-            assetRegister = await AssetRegistry.new({from: Proxy})
-            assetId = await assetRegister.getId.call(name, symbol, classUri)
-            await assetRegister.registerClass(
+            assetRegistry = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegistry.getId.call(name, symbol, classUri)
+            await assetRegistry.registerClass(
                 name, symbol, supply, classUri, Club, {from: Proxy}
             )
-            let standardAssetAddress = await assetRegister.idAssets.call(assetId.toString())
+            let standardAssetAddress = await assetRegistry.idAssets.call(assetId.toString())
             standardAsset = await StandardAsset.at(standardAssetAddress)
         })
 
-        it("should burn a token", async () => {
-
+        it("should revert if token does not exist", async () => {
+            assertRevert(standardAsset.burn(9))
         })
 
     })
-
 
 })
