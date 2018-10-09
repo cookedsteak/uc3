@@ -8,10 +8,10 @@ const StandardAsset = artifacts.require('./StandardAsset.sol')
 require("chai").use(require('chai-bignumber')(BigNumber)).should()
 
 contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
-    const tokenId = 1
+    const initTokenId = 1
     const name = "My membership card"
     const symbol = "MMC"
-    const supply = new BigNumber(3)
+    const supply = new BigNumber(1)
     const classUri = "swarm://cardclass.assets"
     const tokenUri = "swarm://mycard.assets"
 
@@ -39,7 +39,7 @@ contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
 
         it("should revert if registrant is not the owner", async () => {
             assertRevert(assetRegister.registerClass(
-                name, symbol, supply, classUri, Club, {from: Alice}
+                name, symbol, supply, classUri, Club, {from: Bob}
             ))
         })
     })
@@ -60,13 +60,43 @@ contract("AssetRegistry", function ([Proxy, Club, Alice, Bob]) {
         })
 
         it("should mint user a new asset", async () => {
-            standardAsset.mint(Alice, tokenUri, {from: Club})
-            // standardAsset.ownerOf.call().should.equal(Alice)
+            await standardAsset.mint(Alice, tokenUri, {from: Club})
+            // alice 's token id  if shows 0 when mint, plz
+            let ownedTokenCount = await standardAsset.balanceOf.call(Alice)
+            ownedTokenCount.toNumber().should.equal(1)
+
+            let tokenId = await standardAsset.tokenOfOwnerByIndex.call(Alice, ownedTokenCount.toNumber()-1)
+            tokenId.toNumber().should.equal(initTokenId)
+            let tokenOwner = await standardAsset.ownerOf.call(tokenId.toNumber())
+            tokenOwner.toString().should.equal(Alice)
+        })
+
+        it("should revert if mint out of supply limit", async ()=> {
+            await standardAsset.mint(Alice, tokenUri, {from: Club})
+            assertRevert(standardAsset.mint(Bob, tokenUri, {from: Club}))
+
         })
 
     })
 
-    describe('burn', function () {
+    describe('burn asset', function () {
+        let assetRegister = null
+        let standardAsset = null
+        let assetId = null
+
+        beforeEach(async ()=> {
+            assetRegister = await AssetRegistry.new({from: Proxy})
+            assetId = await assetRegister.getId.call(name, symbol, classUri)
+            await assetRegister.registerClass(
+                name, symbol, supply, classUri, Club, {from: Proxy}
+            )
+            let standardAssetAddress = await assetRegister.idAssets.call(assetId.toString())
+            standardAsset = await StandardAsset.at(standardAssetAddress)
+        })
+
+        it("should burn a token", async () => {
+
+        })
 
     })
 

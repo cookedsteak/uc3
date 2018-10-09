@@ -14,14 +14,14 @@ contract AssetRegistry is Ownable {
 
     }
 
-    /**
+    /**  here is a bug when use truffle to test
     * @dev  Registering a type of asset that has at most one asset
     * @param _name AssetType name
     * @param _symbol AssetType symbol
     */
-    function registerClass(string _name, string _symbol, address _owner) onlyOwner public returns (uint){
-        return register(_name, _symbol, 1, "", _owner);
-    }
+//    function registerClass(string _name, string _symbol, address _owner) onlyOwner public returns (uint){
+//        return register(_name, _symbol, 1, "", _owner);
+//    }
 
     /**
     * @dev  Registering a type of asset
